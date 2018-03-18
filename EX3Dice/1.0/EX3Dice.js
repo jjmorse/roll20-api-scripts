@@ -7,6 +7,7 @@
 log('-- Loaded EX3Dice! --');
 sendChat('EX3Dice API', 'Thanks for using EX3Dice! For instructions, type <code>!exr -help</code>');
 
+var gmStr = '-gm';
 
 /**
  * The core functionality of the script. Intercepts API messages meant for it, extracts the core of the command, and passes it to
@@ -20,6 +21,9 @@ on('chat:message', function(msg) {
 
 		var slc = msg.content.slice(msg.content.indexOf(apiWake) + apiWake.length);
 		var rawCmd = slc.trim();
+
+		if (rawCmd.indexOf(gmStr) > -1)
+			rawCmd = rawCmd.slice(rawCmd.indexOf(gmStr) + gmStr.length);
 
 		var patt = /^.*\#/;
 
@@ -36,6 +40,15 @@ on('chat:message', function(msg) {
             var outHTML = buildHelp();
 
             sendChat('EX3Dice API', '/w ' + msg.who + ' ' + outHTML);
+
+						var roll_id = Math.floor((Math.random() * 1000000000000) + 1);
+
+						// var button = document.querySelector("#btnSideToggle");
+            //
+						// button.addEventListener("click", function onclick(event) {
+						//   Viewer.toggleThumbnails();
+						//   event.preventDefault();
+						// });
 
 		} else {
 		    printError(msg, msg.who);
@@ -81,7 +94,10 @@ function performRoll(msg, cmd) {
 	        var outHTML = buildHTML(result, msg.content, ops[0].origRoll, player.get('color'));
 
 			// Passes the final, formatted HTML as a direct message to the chat window.
-	        sendChat(msg.who, '/direct ' + outHTML);
+					if (msg.content.indexOf(gmStr) > -1)
+						sendChat(msg.who, '/w gm ' + outHTML);
+					else
+						sendChat(msg.who, '/direct ' + outHTML);
 
 	    } else {
 
@@ -348,11 +364,20 @@ function doDoubles(result, do10s, limit, args = null) {
  *
  * @return string						html		The completed, raw HTML, to be sent in a direct message to the chat window.
  */
+// function toggleDice(id) {
+// 	var element = document.querySelector('#dice_' + id);
+// 	if (element.style.getPropertyValue('display'))
+// 		element.style.setProperty('display', '');
+// 	else
+// 		element.style.setProperty('display', 'none');
+// }
+
 function buildHTML(result, origCmd, origRoll, color) {
 
 	// Putting everythign in smaller variables that it's easier to type. ;P
     var vals = result.rolls[0].results;
     var succ = result.total;
+		var one_rolled = false;
 
 	// Roll20 doesn't let us piggyback off of most of their classes. Any script-defined HTML classes automatically have "userscript-" attached to the front
 	// of them. The Roll20 CSS has some compatible styling for this already, but it's not complete, so we have to do the rest ourselves.
@@ -375,20 +400,29 @@ function buildHTML(result, origCmd, origRoll, color) {
 	// The styling for the .ui-draggable class, though it doesn't work as it would if it were an official roll.
     var uidraggableStyle = "cursor:move";
 
+		var roll_id = Math.floor((Math.random() * 1000000000000) + 1);
 
 	// Building the output.
     var html = "";
+	// Try adding Styles
+		html += "<style>.dice_wrapper .formula {display: none;} .dice_wrapper:hover .formula { display: inherited;}</style>";
     html += "<div style=\"" + outerStyle + "\">";
     html += "<div style=\"" + innerStyle + "\">";
     html += "<div class=\"formula\" style=\"" + formulaStyle + "\"> rolling " + origRoll + " </div>";
+		// html += "<a href=\"#\" onclick=\"toggleDice(" + roll_id + ")\">Test</a><a id="link_click\" onclick=\"alert('hi')\">Test2</a>";
+		html+= "<div class=\"dice_wrapper\">Show dice";
     html += "<div style=\"clear: both;\"></div>";
 
-    html += "<div class=\"formula formattedformula\" style=\"" + formulaStyle + ";" + formattedFormulaStyle + "\">";
+    html += "<div id=\"dice_" + roll_id + "\" class=\"formula formattedformula\" style=\"" + formulaStyle + ";" + formattedFormulaStyle + "\">";
     html += "  <div class=\"dicegrouping ui-sortable\" data-groupindex=\"0\">";
     html += "  (";
 
 	// Making a little die result for each die rolled.
     _.each(vals, function(item, idx) {
+
+				// Track if a one was rolled to compute botches
+				if (item.v == 1)
+						one_rolled = true;
 
         html += "    <div data-origindex=\"" + idx + "\" class=\"diceroll d10" + ((item.v == 1) ? " critfail" : "") + ((item.v == 10) ? " critsuccess" : "") + "\" style=\"padding: 0px;\">";
         html += "      <div class=\"dicon\">"
@@ -406,10 +440,18 @@ function buildHTML(result, origCmd, origRoll, color) {
     html += "  )";
     html += "  </div>";
     html += "</div>";
+		html += "</div>" // end dice-wrap
 
     html += "<div style=\"clear: both;\"></div>";
     html += "<strong> = </strong>";
-    html += "<div class=\"rolled ui-draggable\" style=\"" + totalStyle + ";" + uidraggableStyle + "\">" + succ + " Success" + ((succ != 1) ? "es" : "") + "</div>";
+    html += "<div class=\"rolled ui-draggable\" style=\"" + totalStyle + ";" + uidraggableStyle + "\">";
+
+		if (!succ && one_rolled)
+			html += " <span style='color: #730505'>Botch</span></div>";
+		else if (!succ && !one_rolled)
+			html += " No Successes</div>";
+		else
+			html += "<span style='color: #247305'>" + succ + " Success" + ((succ != 1) ? "es" : "") + "</span></div>";
     html += "</div>";
     html += "</div>";
 
